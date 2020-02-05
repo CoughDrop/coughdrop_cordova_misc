@@ -70,6 +70,9 @@ public class CoughDropMisc extends CordovaPlugin implements SensorEventListener 
     } else if(action.equals("getAudioDevices")) {
       JSONArray list = new JSONArray(getAudioDevices());
       callbackContext.success(list);
+    } else if(action.equals("setSysteemVolume")) {
+      double volume = args.getJsonObject(0).getDouble("volume");
+      return setSystemVolume(volume, callbackContext);
     } else if(action.equals("setAudioMode")) {
       String mode = args.getString(0);
       return setAudioMode(mode, callbackContext);
@@ -111,6 +114,18 @@ public class CoughDropMisc extends CordovaPlugin implements SensorEventListener 
       String version = pInfo.versionName;
       result.put("version", version);
     } catch (PackageManager.NameNotFoundException e) { }
+    callbackContext.success(result);
+    return true;
+  }
+
+  private boolean setSystemVolume(double volume, CallbackContext callbackContext) throws JSONException {
+    Context context=this.cordova.getActivity().getApplicationContext();
+    AudioManager audioManager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
+    int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+
+    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(maxVolume * volume) , 0);    
+    JSONObject result = new JSONObject();
+    result.put("volume", volume);
     callbackContext.success(result);
     return true;
   }

@@ -57,6 +57,21 @@
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
+- (void) setSystemVolume:(CDVInvokedUrlCommand *)command 
+{
+    NSDictionary *JSONArgument = [command argumentAtIndex:0];
+    float volume = 1.0;
+    NSNumber *volumeNumber = JSONArgument[@"volume"];
+    if (volumeNumber) {
+        volume = volumeNumber.floatValue;
+    }
+    [[MPMusicPlayerController applicationMusicPlayer] setVolume:volume];
+    NSMutableDictionary* result = [[NSMutableDictionary alloc] init];
+    [result setObject:[NSNumber numberWithFloat:volume] forKey:@"volume"];
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK  messageAsDictionary:result];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
 - (void)setAudioMode:(CDVInvokedUrlCommand *)command
 {
     NSString* mode = [command.arguments objectAtIndex:0];
