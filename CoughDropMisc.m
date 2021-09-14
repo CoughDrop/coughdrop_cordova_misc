@@ -12,6 +12,18 @@
 // #import "AudioTogglePlugin.h"
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
+#import <MediaPlayer/MediaPlayer.h>
+#import <objc/runtime.h>
+#import <WebKit/WebKit.h>
+
+@interface _NoInputAccessoryView : NSObject
+@end
+
+@implementation _NoInputAccessoryView {}
+- (id)inputAccessoryView {
+    return nil;
+}
+@end
 
 @interface CoughDropMisc : CDVPlugin
 @end
@@ -19,6 +31,7 @@
 @implementation CoughDropMisc {
     NSString* changeCallbackId;
 }
+
 
 - (void)status:(CDVInvokedUrlCommand*)command
 {
@@ -70,6 +83,115 @@
     [result setObject:[NSNumber numberWithFloat:volume] forKey:@"volume"];
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK  messageAsDictionary:result];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
+static IMP UIOriginalImp;
+static IMP WKOriginalImp;
+- (void) setKeyboardShortcutBar: (UIView *)view show:(BOOL)show
+{
+    for (UIView *sub in view.subviews) {
+        [self setKeyboardShortcutBar:sub show:show];
+        if ([NSStringFromClass([sub class]) isEqualToString:@"UIWebBrowserView"]) {
+            Method method = class_getInstanceMethod(sub.class, @selector(inputAccessoryView));
+            if(show) {
+                method_setImplementation(method, UIOriginalImp);
+            } else {
+                if(!UIOriginalImp) {
+                    UIOriginalImp = method_getImplementation(method);
+                }
+                IMP newImp = imp_implementationWithBlock(^(id _s) {
+                    if ([sub respondsToSelector:@selector(inputAssistantItem)]) {
+                        UITextInputAssistantItem *inputAssistantItem = [sub inputAssistantItem];
+                        inputAssistantItem.leadingBarButtonGroups = @[];
+                        inputAssistantItem.trailingBarButtonGroups = @[];
+                    }
+                    return nil;
+                });
+                method_setImplementation(method, newImp);
+            }
+        }
+    }
+}
+
+- (void)toggleKeyboardAccessoryBar:(CDVInvokedUrlCommand *)command
+{
+
+    WKWebView *webView = [self webView];
+
+// - (void)removeInputAccessoryViewFromWKWebView:(WKWebView *)webView {
+    UIView *targetView;
+
+    for (UIView *view in webView.scrollView.subviews) {
+        if([[view.class description] hasPrefix:@"WKContent"]) {
+            targetView = view;
+        }
+    }
+
+    if (!targetView) {
+        return;
+    }
+
+    NSString *noInputAccessoryViewClassName = [NSString stringWithFormat:@"%@_NoInputAccessoryView", targetView.class.superclass];
+    Class newClass = NSClassFromString(noInputAccessoryViewClassName);
+
+    if(newClass == nil) {
+        newClass = objc_allocateClassPair(targetView.class, [noInputAccessoryViewClassName cStringUsingEncoding:NSASCIIStringEncoding], 0);
+        if(!newClass) {
+            return;
+        }
+
+        Method method = class_getInstanceMethod([_NoInputAccessoryView class], @selector(inputAccessoryView));
+
+        class_addMethod(newClass, @selector(inputAccessoryView), method_getImplementation(method), method_getTypeEncoding(method));
+
+        objc_registerClassPair(newClass);
+    }
+
+    object_setClass(targetView, newClass);
+// }
+
+
+    BOOL show = false;
+    if (command.arguments.count > 0) {
+        id value = [command.arguments objectAtIndex:0];
+        if (!([value isKindOfClass:[NSNumber class]])) {
+            value = [NSNumber numberWithBool:NO];
+        }
+        show = [value boolValue];
+    }
+
+    NSString* UIClassString = [@[@"UI"] componentsJoinedByString:@""];
+    UIView *view = (UIView *)NSClassFromString(UIClassString);
+    [self setKeyboardShortcutBar:[self webView] show:show];
+
+    // NSString* UIClassString = [@[@"UI", @"Web", @"Browser", @"View"] componentsJoinedByString:@""];
+    // NSString* WKClassString = [@[@"WK", @"Content", @"View"] componentsJoinedByString:@""];
+
+    // Method UIMethod = class_getInstanceMethod(NSClassFromString(UIClassString), @selector(inputAccessoryView));
+    // Method WKMethod = class_getInstanceMethod(NSClassFromString(WKClassString), @selector(inputAccessoryView));
+
+    // if (hideFormAccessoryBar) {
+    //     UIView *sub = (UIView *)NSClassFromString(UIClassString);
+    //     UIOriginalImp = method_getImplementation(UIMethod);
+    //     WKOriginalImp = method_getImplementation(WKMethod);
+
+    //     IMP newImp = imp_implementationWithBlock(^(id _s) {
+    //         if ([sub respondsToSelector:@selector(inputAssistantItem)]) {
+    //             UITextInputAssistantItem *inputAssistantItem = [sub inputAssistantItem];
+    //             inputAssistantItem.leadingBarButtonGroups = @[];
+    //             inputAssistantItem.trailingBarButtonGroups = @[];
+    //         }
+    //         return nil;
+    //     });
+
+    //     method_setImplementation(UIMethod, newImp);
+    //     // method_setImplementation(WKMethod, newImp);
+    // } else {
+    //     method_setImplementation(UIMethod, UIOriginalImp);
+    //     method_setImplementation(WKMethod, WKOriginalImp);
+    // }   
+    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:show]
+                                callbackId:command.callbackId]; 
 }
 
 - (void)setAudioMode:(CDVInvokedUrlCommand *)command
