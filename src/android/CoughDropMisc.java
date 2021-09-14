@@ -71,7 +71,7 @@ public class CoughDropMisc extends CordovaPlugin implements SensorEventListener 
       JSONArray list = new JSONArray(getAudioDevices());
       callbackContext.success(list);
     } else if(action.equals("setSystemVolume")) {
-      double volume = args.getJsonObject(0).getDouble("volume");
+      double volume = args.getJSONObject(0).getDouble("volume");
       return setSystemVolume(volume, callbackContext);
     } else if(action.equals("setAudioMode")) {
       String mode = args.getString(0);
